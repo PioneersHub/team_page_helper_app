@@ -58,9 +58,11 @@ class UpdateTeamPage:
         log.info("Read Google Sheet")
         records = self.gsheet_df.rename(columns=CONFIG["member"]).fillna("").to_dict(orient="records")
         members = {x: [] for x in {c.get("committee") for c in records if c.get("committee")}}
+        log.info(f"Found {len(records)} members in the Google Sheet")
 
         log.info("Creating TeamMembers")
-        for record in records:
+        for i, record in enumerate(records, 1):
+            log.info(f"Processing record {i}/{len(records) {record['name']}}")
             if record["ignore"].casefold() != "yes":
                 continue
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
@@ -108,6 +110,11 @@ class UpdateTeamPage:
             return
 
         url = member.image_file
+        if url.host == "drive.google.com":
+            url = str(url).replace("open", "uc")
+        self.download_url(url, member, normalized_name)
+
+    def download_url(self, url: str, member: TeamMember, normalized_name: str):
         try:
             # Step 1: Fetch Content-Type from the URL
             try:
@@ -135,7 +142,7 @@ class UpdateTeamPage:
                     file.write(chunk)
                 self.repo.git.add(str(member_image))
 
-            log.info("Image downloaded successfully and saved")
+            log.info(f"Image {member.name} downloaded successfully and saved")
 
         except requests.exceptions.RequestException as e:
             log.info(f"Failed to download the image: {e}")

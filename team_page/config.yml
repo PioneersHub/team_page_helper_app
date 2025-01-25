@@ -16,7 +16,7 @@ member:
   "Committee": "committee"
   "Mastodon  (URL)": "mastodon"
   "Git": "github"
-  "Link to the picture": "image_file"
+  "Upload picture": "image_file"
   "LinkedIn  (URL)": "linkedin"
   "Name": "name"
   "Homepage  (URL)": "website"
@@ -34,7 +34,7 @@ sort_order:
   - 'Communication'
   - 'Code of Conduct'
 # #########################################
-# destiantion github repo
+# destination github repo
 git_repo_url: "https://github.com/PioneersHub/pyconde-website"
 # path to work directory for git repo from project root
 local_repo_path: "repo"
