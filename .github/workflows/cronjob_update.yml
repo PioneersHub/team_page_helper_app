@@ -1,0 +1,35 @@
+name: Update team page (Cron)
+
+on:
+  schedule:
+    - cron: "00 01,13 * * *"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Create env file
+        run: |
+          touch .env
+          echo TEAM_SHEET_ID=${{secrets.TEAM_SHEET_ID}} >> .env
+          echo TEAM_WORKSHEET_NAME=${{secrets.TEAM_WORKSHEET_NAME}} >> .env
+          echo WEBSITE_REPOSITORY_TOKEN=${{secrets.WEBSITE_REPOSITORY_TOKEN}} >> .env
+          cat .env
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
+      - name: Run team_page/mainy.py
+        run: |
+          uv team_page/mainy.py

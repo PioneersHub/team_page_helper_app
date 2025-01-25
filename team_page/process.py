@@ -13,7 +13,7 @@ from git import GitCommandError, Repo
 from pydantic import ValidationError
 from pytanis import GSheetsClient
 
-from team_page import CONFIG, GITHUB_TOKEN, TEAM_SHEET_ID, TEAM_WORKSHEET_NAME, log
+from team_page import CONFIG, TEAM_SHEET_ID, TEAM_WORKSHEET_NAME, WEBSITE_REPOSITORY_TOKEN, log
 from team_page.models import Committee, TeamDataBag, TeamMember
 
 
@@ -44,7 +44,7 @@ class UpdateTeamPage:
         if self.local_repo_path.exists():
             shutil.rmtree(self.local_repo_path)
         log.info("Cloning repository...")
-        self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{GITHUB_TOKEN}@"), self.local_repo_path)
+        self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path)
 
         if CONFIG["branch_name"] in self.repo.heads:
             self.repo.git.checkout(CONFIG["branch_name"])
@@ -196,7 +196,7 @@ class UpdateTeamPage:
         log.info("Creating a pull request...")
         api_url = f"https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls"
         headers = {
-            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Authorization": f"Bearer {WEBSITE_REPOSITORY_TOKEN}",
             "Accept": "application/vnd.github+json",
         }
         payload = {
