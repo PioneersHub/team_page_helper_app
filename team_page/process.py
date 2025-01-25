@@ -62,7 +62,7 @@ class UpdateTeamPage:
 
         log.info("Creating TeamMembers")
         for i, record in enumerate(records, 1):
-            log.info(f"Processing record {i}/{len(records) {record['name']}}")
+            log.info(f"Processing record {i}/{len(records)} {record['name']}")
             if record["ignore"].casefold() != "yes":
                 continue
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
