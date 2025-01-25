@@ -35,4 +35,4 @@ jobs:
         run: uv sync
 
       - name: Run team_page/mainy.py
-        run: uv run python team_page/mainy.py
+        run: uv run python team_page/main.py
