@@ -47,6 +47,9 @@ jobs:
           echo "[Google]">>config.toml
           echo 'client_secret_json = "client_secret.json"'>>config.toml
           echo 'token_json = "token.json"'>>config.toml
+          # unused but required in Pytanis
+          echo "[HelpDesk]">>config.toml
+          echo "[Pretalx]">>config.toml
           
       - name: Create Google Client Secret
         working-directory: /home/runner/.pytanis
