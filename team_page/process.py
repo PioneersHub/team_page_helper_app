@@ -5,10 +5,11 @@ The info is collected via a Google Form and read from a Google Sheet.
 
 import contextlib
 import shutil
+from http import HTTPStatus
 from pathlib import Path
 
 import requests
-from git import Repo
+from git import GitCommandError, Repo
 from pydantic import ValidationError
 from pytanis import GSheetsClient
 
@@ -40,7 +41,7 @@ class UpdateTeamPage:
 
     def get_repo(self):
         if self.local_repo_path.exists():
-            shutil.rmtree(self.local_repo_path) 
+            shutil.rmtree(self.local_repo_path)
         log.info("Cloning repository...")
         self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{GITHUB_TOKEN}@"), self.local_repo_path)
 
@@ -48,12 +49,16 @@ class UpdateTeamPage:
             self.repo.git.checkout(CONFIG["branch_name"])
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
+        log.info(f"Cloned repository and checked out {CONFIG['branch_name']})")
 
     def sheet_to_json(self):
-        self.gsheet_df = self.get_gsheet()
+        log.info("Converting Google Sheet to JSON")
+        self.gsheet_df = self.read_gsheet()
+        log.info("Read Google Sheet")
         records = self.gsheet_df.rename(columns=CONFIG["member"]).fillna("").to_dict(orient="records")
         members = {x: [] for x in {c.get("committee") for c in records if c.get("committee")}}
 
+        log.info("Creating TeamMembers")
         for record in records:
             if record["ignore"].casefold() != "yes":
                 continue
@@ -66,9 +71,9 @@ class UpdateTeamPage:
             self.download_member_image(member)
             members[record.get("committee", "other")].append(member)
 
-
+        log.info("Created TeamMembers, creating Committees")
         committees = [Committee(name=k, members=v) for k, v in members.items()]
-        log.info("Created committees")
+        log.info("Created Committees")
         committees = self.sort_committees(committees)
         # noinspection PyTypeChecker
         data_bag = TeamDataBag(
@@ -98,7 +103,7 @@ class UpdateTeamPage:
                 return
         normalized_name = self.normalized_member_name(member.name)
         if normalized_name in self.image_dir.rglob("*"):
-            log.info(f"Image for {member.name} already exists, remove from website repofirst to update.")
+            log.info(f"Image for {member.name} already exists, remove from website repo first to update.")
             return
 
         url = member.image_file
@@ -122,7 +127,7 @@ class UpdateTeamPage:
             response = requests.get(member.image_file, stream=True)
             response.raise_for_status()  # Raise an error for HTTP codes >= 400
 
-            member_image = self.__init__image_dir / f"{normalized_name}.{content_type.split('/')[-1]}"
+            member_image = self.image_dir / f"{normalized_name}.{content_type.split('/')[-1]}"
             # Write the image content to a file
             with open(member_image, "wb") as file:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -146,10 +151,12 @@ class UpdateTeamPage:
         self.repo.index.commit("Update team data")
         try:
             origin = self.repo.remote(name="origin")
-            branch_name = self.active_branch.name
-
+            branch_name = self.repo.active_branch.name
+            # Pull the latest changes from the remote repository
+            log.info("Pulling latest changes from remote repository...")
+            origin.pull(rebase=True)
             # Check if the branch has an upstream set
-            tracking_branch = self.active_branch.tracking_branch()
+            tracking_branch = self.repo.active_branch.tracking_branch()
             if not tracking_branch:
                 # Set the upstream branch if it doesn't exist
                 log.info(f"Setting upstream branch for '{branch_name}'...")
@@ -182,15 +189,49 @@ class UpdateTeamPage:
 
         response = requests.post(api_url, headers=headers, json=payload)
 
-        if response.status_code == 201:
+        if response.status_code == HTTPStatus.CREATED:
             log.info("Pull request created successfully!")
         else:
             log.info("Failed to create pull request:", response.status_code)
             log.info(response.json())
+
+    def check_for_changes(self):
+        try:
+            # Fetch the latest changes from the remote
+            origin = self.repo.remote(name="origin")
+            origin.fetch()
+
+            # Get the current branch and its tracking branch
+            local_branch = self.repo.active_branch
+            tracking_branch = local_branch.tracking_branch()
+
+            if not tracking_branch:
+                raise ValueError(f"Local branch '{local_branch}' has no upstream branch.")
+
+            # Compare local and remote branch commits
+            local_commit = self.repo.commit(local_branch)
+            remote_commit = self.repo.commit(tracking_branch)
+
+            if local_commit == remote_commit:
+                print("No changes detected: Local and remote branches are in sync.")
+            else:
+                print("Changes detected: Local and remote branches differ.")
+
+            # Check for uncommitted changes
+            if self.repo.is_dirty(untracked_files=True):
+                print("Uncommitted changes detected in the working directory.")
+            else:
+                print("No uncommitted changes in the working directory.")
+
+        except GitCommandError as e:
+            print(f"Git command failed: {e}")
+        except Exception as e:
+            print(f"Error: {e}")
 
     def run_update(self):
         self.get_repo()
         new_data_bag = self.sheet_to_json()
         self.save_json(new_data_bag)
         self.commit_changes()
+        self.check_for_changes()
         self.pull_request()

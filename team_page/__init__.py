@@ -9,29 +9,21 @@ from dotenv import load_dotenv
 with (Path(__file__).parent / "config.yml").open("r") as f:
     CONFIG = yaml.safe_load(f)
 
-logging.basicConfig(
-    # stream=sys.stdout,
-    level=logging.DEBUG,
-)
-
-os.environ["FORCE_COLOR"] = "1"
-logging.getLogger("urllib3").setLevel(logging.CRITICAL + 1)
-logging.getLogger("git").setLevel(logging.WARNING)
-
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
-        structlog.processors.TimeStamper(fmt="%Y-%m-%dT%H:%M:%S", utc=True),
-        structlog.dev.ConsoleRenderer(),
+        structlog.processors.TimeStamper(fmt="%Y%m%dT%H%M%S", utc=True),
+        structlog.dev.ConsoleRenderer(),  # Ensure ConsoleRenderer is used
     ],
-    wrapper_class=structlog.make_filtering_bound_logger(logging.NOTSET),
+    wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG),
     context_class=dict,
     logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=False,
+    cache_logger_on_first_use=False
 )
+
 log = structlog.get_logger()
 log.info("Logging configured")
 

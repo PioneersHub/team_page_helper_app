@@ -628,6 +628,7 @@ name = "team-page-helper-app"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "colorama" },
     { name = "gitpython" },
     { name = "pyaml" },
     { name = "pydantic" },
@@ -640,6 +641,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "gitpython", specifier = ">=3.1.44" },
     { name = "pyaml", specifier = ">=25.1.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
