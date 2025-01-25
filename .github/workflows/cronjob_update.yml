@@ -36,12 +36,12 @@ jobs:
 
       - name: Create .pytanis directory
         run: |
-          mkdir .pytanis
+          mkdir ../.pytanis
       - name: Just to DEBUG
         run: |
           ls -lha */*
       - name: Create config.toml
-        working-directory: .pytanis
+        working-directory: ../.pytanis
         run: |
           touch config.toml
           echo "[Google]">>config.toml
@@ -49,11 +49,11 @@ jobs:
           echo 'token_json = "token.json"'>>config.toml
           
       - name: Create Google Client Secret
-        working-directory: .pytanis
+        working-directory: ../.pytanis
         run: |
           echo ${{ secrets.GOOGLE_CLIENT_SECRET }} | base64 -d > client_secret.json
       - name: Create Google Token
-        working-directory: .pytanis
+        working-directory: ../.pytanis
         run: |
           echo ${{ secrets.GOOGLGE_TOKEN_JSON }} | base64 -d > token.json
 
