@@ -1,0 +1,46 @@
+[project]
+name = "team-page-helper-app"
+version = "0.1.0"
+description = "Create the JSON file for the team on the website from self-service team Google Sheet."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "gitpython>=3.1.44",
+    "pyaml>=25.1.0",
+    "pydantic>=2.10.6",
+    "pytanis>=0.7.2",
+    "python-dotenv>=1.0.1",
+    "rich>=13.9.4",
+    "ruff>=0.9.3",
+    "structlog>=25.1.0",
+]
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "F",  # pyflakes
+    "E", "W",  # pycodestyle
+    "A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    "PL",  # pylint
+    "TID",  # tidy
+    "I",  # isort
+    "N",  # pep8-naming
+    "UP"  # pyupgrade
+]
+ignore = [
+    "E501",  # may cause conflicts with ruff formatter
+    "W191"
+]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

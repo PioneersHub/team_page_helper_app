@@ -1,0 +1,45 @@
+---
+# #########################################
+# repo locations from repo root
+team_images: "assets/static/media/team/2025/"
+default_image: "gender_neutral_user.png"
+data_bag: "databags/team.json"
+# destination url
+team_asset_url: "https://2024.pycon.de/static/media/team/2025/"
+# #########################################
+# #########################################
+# MAP G-SHEET COLUMNS TO KEYS
+# #########################################
+member:
+  # colun name in G-Sheet: attribute in data model
+  "BlueSky  (URL)": "bluesky"
+  "Committee": "committee"
+  "Mastodon  (URL)": "mastodon"
+  "Git": "github"
+  "Link to the picture": "image_file"
+  "LinkedIn  (URL)": "linkedin"
+  "Name": "name"
+  "Homepage  (URL)": "website"
+  "Would you like to appear on Meet the Team page?": "ignore"
+  "X/Twitter (URL)": "twitter"
+  "Committee Chair": "chair"
+# #########################################
+# sort order for list on website, unlisted keys will at the end
+sort_order:
+  - 'Steering'
+  - 'Program'
+  - 'Diversity'
+  - 'On-Site'
+  - 'Video'
+  - 'Communication'
+  - 'Code of Conduct'
+# #########################################
+# destiantion github repo
+git_repo_url: "https://github.com/PioneersHub/pyconde-website"
+# path to workdirectory for git repo from project root
+local_repo_path: "repo"
+# branch to make changes in
+branch_name: "auto-update-team-page"
+repo_owner: "PioneersHub"
+repo_name: "pyconde-website"
+# #########################################
