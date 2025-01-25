@@ -103,7 +103,7 @@ class UpdateTeamPage:
                 # avoid repeated image updates
                 return
         normalized_name = self.normalized_member_name(member.name)
-        if normalized_name in self.image_dir.rglob("*"):
+        if normalized_name in {x.stem.casefold() for x in self.image_dir.rglob("*")}:
             log.info(f"Image for {member.name} already exists, remove from website repo first to update.")
             return
 
@@ -141,7 +141,7 @@ class UpdateTeamPage:
             log.info(f"Failed to download the image: {e}")
 
     def normalized_member_name(self, name: str) -> str:
-        return name.replace(" ", "_").lower()
+        return name.replace(" ", "_").casefold()
 
     def save_json(self, data_bag: TeamDataBag):
         with self.databag.open("w") as f:
@@ -176,6 +176,10 @@ class UpdateTeamPage:
             else:
                 log.info(f"Upstream branch already set: {tracking_branch.name}")
 
+            self.check_for_changes()
+            if not self.changes_to_push:
+                log.info("No changes to push. Exiting...")
+                return
             # Push changes
             log.info("Pushing changes to remote repository...")
             origin.push()
@@ -186,7 +190,7 @@ class UpdateTeamPage:
 
     def pull_request(self):
         if not self.changes_to_push:
-            log.info("No changes to push. Exiting...")
+            log.info("No PR to make. Exiting...")
             return
         # Step 5: Create a pull request
         log.info("Creating a pull request...")
@@ -231,13 +235,7 @@ class UpdateTeamPage:
                 log.info("No changes detected: Local and remote branches are in sync.")
             else:
                 log.info("Changes detected: Local and remote branches differ.")
-
-            # Check for uncommitted changes
-            if self.repo.is_dirty(untracked_files=True):
-                log.info("Uncommitted changes detected in the working directory.")
                 self.changes_to_push = True
-            else:
-                log.info("No uncommitted changes in the working directory.")
 
         except GitCommandError as e:
             log.info(f"Git command failed: {e}")
