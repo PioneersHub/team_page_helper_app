@@ -37,10 +37,12 @@ jobs:
       - name: Create .pytanis directory
         run: |
           mkdir .pytanis
+      - name: Just to DEBUG
+        run: |
+          ls -lha */*
       - name: Create config.toml
         working-directory: .pytanis
         run: |
-          cd .pytanis
           touch config.toml
           echo "[Google]">>config.toml
           echo 'client_secret_json = "client_secret.json"'>>config.toml
