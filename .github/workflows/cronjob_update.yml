@@ -3,6 +3,7 @@ name: Update team page (Cron)
 on:
   schedule:
     - cron: "00 01,13 * * *"
+  workflow_dispatch:
 
 jobs:
   deploy:
