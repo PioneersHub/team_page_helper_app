@@ -24,6 +24,7 @@ class UpdateTeamPage:
         self.repo = None
         self.gsheets_client = GSheetsClient()
         self.gsheet_df = None
+        self.changes_to_push = False
         # standard paths
         self.local_repo_path = Path(__file__).parents[1] / CONFIG["local_repo_path"]
         self.image_dir = self.local_repo_path / CONFIG["team_images"]
@@ -154,9 +155,20 @@ class UpdateTeamPage:
             branch_name = self.repo.active_branch.name
             # Pull the latest changes from the remote repository
             log.info("Pulling latest changes from remote repository...")
-            origin.pull(rebase=True)
             # Check if the branch has an upstream set
             tracking_branch = self.repo.active_branch.tracking_branch()
+            try:
+                self.repo.git.fetch("--all")
+                if self.repo.is_dirty(untracked_files=True):
+                    self.repo.git.stash('save')
+                    stash_applied = True
+                else:
+                    stash_applied = False
+                self.repo.git.pull("origin", branch_name, "--rebase")
+                if stash_applied:
+                    self.repo.git.stash('pop')
+            except GitCommandError as e:
+                log.error(f"Failed to pull changes: {e}")
             if not tracking_branch:
                 # Set the upstream branch if it doesn't exist
                 log.info(f"Setting upstream branch for '{branch_name}'...")
@@ -173,6 +185,9 @@ class UpdateTeamPage:
             raise
 
     def pull_request(self):
+        if not self.changes_to_push:
+            log.info("No changes to push. Exiting...")
+            return
         # Step 5: Create a pull request
         log.info("Creating a pull request...")
         api_url = f"https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls"
@@ -213,20 +228,21 @@ class UpdateTeamPage:
             remote_commit = self.repo.commit(tracking_branch)
 
             if local_commit == remote_commit:
-                print("No changes detected: Local and remote branches are in sync.")
+                log.info("No changes detected: Local and remote branches are in sync.")
             else:
-                print("Changes detected: Local and remote branches differ.")
+                log.info("Changes detected: Local and remote branches differ.")
 
             # Check for uncommitted changes
             if self.repo.is_dirty(untracked_files=True):
-                print("Uncommitted changes detected in the working directory.")
+                log.info("Uncommitted changes detected in the working directory.")
+                self.changes_to_push = True
             else:
-                print("No uncommitted changes in the working directory.")
+                log.info("No uncommitted changes in the working directory.")
 
         except GitCommandError as e:
-            print(f"Git command failed: {e}")
+            log.info(f"Git command failed: {e}")
         except Exception as e:
-            print(f"Error: {e}")
+            log.info(f"Error: {e}")
 
     def run_update(self):
         self.get_repo()

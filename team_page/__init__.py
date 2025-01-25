@@ -9,6 +9,17 @@ from dotenv import load_dotenv
 with (Path(__file__).parent / "config.yml").open("r") as f:
     CONFIG = yaml.safe_load(f)
 
+# Configure standard logging to route through structlog
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the desired log level
+    format="%(message)s",
+    force=True,  # Ensure existing logging configs are overridden
+)
+
+logging.getLogger("urllib3").setLevel(logging.CRITICAL + 1)
+logging.getLogger("git").setLevel(logging.CRITICAL + 1)
+
+
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
@@ -20,8 +31,8 @@ structlog.configure(
     ],
     wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG),
     context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=False
+    logger_factory=structlog.stdlib.LoggerFactory(),  # Use stdlib logging
+    cache_logger_on_first_use=True
 )
 
 log = structlog.get_logger()
