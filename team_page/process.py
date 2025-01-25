@@ -48,9 +48,12 @@ class UpdateTeamPage:
 
         if CONFIG["branch_name"] in self.repo.heads:
             self.repo.git.checkout(CONFIG["branch_name"])
+            log.info(f"Checked out existing branch {CONFIG['branch_name']}")
+            self.repo.git.pull("origin", CONFIG["branch_name"])
+            log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
-        log.info(f"Cloned repository and checked out {CONFIG['branch_name']})")
+            log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
 
     def sheet_to_json(self):
         log.info("Converting Google Sheet to JSON")
@@ -155,44 +158,37 @@ class UpdateTeamPage:
             f.write(data_bag.model_dump_json(indent=4))
         log.info("Created data_bag json")
 
-    def commit_changes(self):
-        self.repo.index.commit("Update team data")
+    def apply_changes(self):
+        """Compare the local branch and the remote branch if there is any difference to push, the remote branch is origin/main."""
         try:
-            origin = self.repo.remote(name="origin")
-            branch_name = self.repo.active_branch.name
-            # Pull the latest changes from the remote repository
-            log.info("Pulling latest changes from remote repository...")
-            # Check if the branch has an upstream set
-            tracking_branch = self.repo.active_branch.tracking_branch()
-            try:
-                self.repo.git.fetch("--all")
-                if self.repo.is_dirty(untracked_files=True):
-                    self.repo.git.stash('save')
-                    stash_applied = True
-                else:
-                    stash_applied = False
-                self.repo.git.pull("origin", branch_name, "--rebase")
-                if stash_applied:
-                    self.repo.git.stash('pop')
-            except GitCommandError as e:
-                log.error(f"Failed to pull changes: {e}")
-            if not tracking_branch:
-                # Set the upstream branch if it doesn't exist
-                log.info(f"Setting upstream branch for '{branch_name}'...")
-                self.repo.git.push("--set-upstream", "origin", branch_name)
+            # Check for changes
+            if self.repo.is_dirty(untracked_files=True):
+                log.info("Changes detected, committing changes...")
+                self.repo.git.add(A=True)
+                self.repo.index.commit("Update team page data")
+                self.changes_to_push = True
             else:
-                log.info(f"Upstream branch already set: {tracking_branch.name}")
+                log.info("No changes detected in the repository.")
 
-            self.check_for_changes()
-            if not self.changes_to_push:
-                log.info("No changes to push. Exiting...")
-                return
-            # Push changes
-            log.info("Pushing changes to remote repository...")
-            origin.push()
+            # Check if there are any differences between the local and remote branches
+            remote_branch = self.repo.remotes.origin.refs.main
+            local_branch = self.repo.heads[CONFIG["branch_name"]]
+
+            if local_branch.commit != remote_branch.commit:
+                log.info("Differences detected between local and remote branches.")
+                self.changes_to_push = True
+            else:
+                log.info("No differences detected between local and remote branches.")
+                self.changes_to_push = False
+
+                    # Push changes to the remote repository if there are any changes to push
+            if self.changes_to_push:
+                log.info(f"Pushing changes to remote branch {CONFIG['branch_name']}...")
+                self.repo.git.push("origin", CONFIG["branch_name"])
+                log.info("Changes pushed successfully.")
 
         except Exception as e:
-            log.error(f"Failed to commit and push changes: {e}")
+            log.error(f"Failed to commit changes: {e}")
             raise
 
     def pull_request(self):
@@ -230,6 +226,8 @@ class UpdateTeamPage:
             # Get the current branch and its tracking branch
             local_branch = self.repo.active_branch
             tracking_branch = local_branch.tracking_branch()
+            log.info(f"Local branch: {local_branch.name}")
+            log.info(f"Tracking branch: {tracking_branch.name if tracking_branch else None}")
 
             if not tracking_branch:
                 raise ValueError(f"Local branch '{local_branch}' has no upstream branch.")
@@ -238,11 +236,11 @@ class UpdateTeamPage:
             local_commit = self.repo.commit(local_branch)
             remote_commit = self.repo.commit(tracking_branch)
 
-            if local_commit == remote_commit:
-                log.info("No changes detected: Local and remote branches are in sync.")
-            else:
+            if local_commit != remote_commit or not self.remote_exists:
                 log.info("Changes detected: Local and remote branches differ.")
                 self.changes_to_push = True
+            else:
+                log.info("No changes detected: Local and remote branches are in sync.")
 
         except GitCommandError as e:
             log.info(f"Git command failed: {e}")
@@ -253,6 +251,6 @@ class UpdateTeamPage:
         self.get_repo()
         new_data_bag = self.sheet_to_json()
         self.save_json(new_data_bag)
-        self.commit_changes()
-        self.check_for_changes()
+        self.apply_changes()
+        # self.check_for_changes()
         self.pull_request()
