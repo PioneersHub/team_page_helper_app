@@ -12,6 +12,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set Git User Identity
+        run: |
+          git config --local user.email gh_robot@pioneershub.org
+          git config --local user.name "Repo Cronjob GitHub Actions"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
