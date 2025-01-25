@@ -33,4 +33,4 @@ jobs:
 
       - name: Run team_page/mainy.py
         run: |
-          uv team_page/mainy.py
+          uv run team_page/mainy.py
