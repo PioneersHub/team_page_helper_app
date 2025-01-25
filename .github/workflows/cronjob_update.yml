@@ -20,19 +20,41 @@ jobs:
         with:
           python-version-file: ".python-version"
 
-      - name: Create env file
-        run: |
-          touch .env
-          echo TEAM_SHEET_ID=${{secrets.TEAM_SHEET_ID}} >> .env
-          echo TEAM_WORKSHEET_NAME=${{secrets.TEAM_WORKSHEET_NAME}} >> .env
-          echo WEBSITE_REPOSITORY_TOKEN=${{secrets.WEBSITE_REPOSITORY_TOKEN}} >> .env
-          cat .env
-
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
 
       - name: Install dependencies with uv
         run: uv sync
 
+      - name: Create env file
+        run: |
+          touch .env
+          echo "TEAM_SHEET_ID=${{secrets.TEAM_SHEET_ID}}" >> .env
+          echo "TEAM_WORKSHEET_NAME=${{secrets.TEAM_WORKSHEET_NAME}}" >> .env
+          echo "WEBSITE_REPOSITORY_TOKEN=${{secrets.WEBSITE_REPOSITORY_TOKEN}}" >> .env
+          cat .env
+
+      - name: Create .pytanis directory
+        run: |
+          mkdir .pytanis
+      - name: Create config.toml
+        working-directory: .pytanis
+        run: |
+          cd .pytanis
+          touch config.toml
+          echo "[Google]">>config.toml
+          echo 'client_secret_json = "client_secret.json"'>>config.toml
+          echo 'token_json = "token.json"'>>config.toml
+          
+      - name: Create Google Client Secret
+        working-directory: .pytanis
+        run: |
+          echo ${{ secrets.GOOGLE_CLIENT_SECRET }} | base64 -d > client_secret.json
+      - name: Create Google Token
+        working-directory: .pytanis
+        run: |
+          echo ${{ secrets.GOOGLGE_TOKEN_JSON }} | base64 -d > token.json
+
       - name: Run team_page/mainy.py
-        run: uv run python team_page/main.py
+        working-directory: team_page
+        run: uv run python main.py
