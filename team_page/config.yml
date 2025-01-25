@@ -11,7 +11,7 @@ team_asset_url: "https://2024.pycon.de/static/media/team/2025/"
 # MAP G-SHEET COLUMNS TO KEYS
 # #########################################
 member:
-  # colun name in G-Sheet: attribute in data model
+  # column name in G-Sheet: attribute in data model
   "BlueSky  (URL)": "bluesky"
   "Committee": "committee"
   "Mastodon  (URL)": "mastodon"
@@ -36,7 +36,7 @@ sort_order:
 # #########################################
 # destiantion github repo
 git_repo_url: "https://github.com/PioneersHub/pyconde-website"
-# path to workdirectory for git repo from project root
+# path to work directory for git repo from project root
 local_repo_path: "repo"
 # branch to make changes in
 branch_name: "auto-update-team-page"
