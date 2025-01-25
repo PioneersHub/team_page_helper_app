@@ -32,7 +32,7 @@ jobs:
         run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
 
       - name: Install dependencies with uv
-        run: uv install
+        run: uv sync
 
       - name: Run team_page/mainy.py
         run: uv run python team_page/mainy.py
