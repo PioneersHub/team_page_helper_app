@@ -147,7 +147,7 @@ class UpdateTeamPage:
                     file.write(chunk)
                 self.repo.git.add(str(member_image))
 
-            log.info(f"Image {member.name} downloaded successfully and saved")
+            log.info(f"Image {obfuscate_name(member.name)} downloaded successfully and saved")
 
         except requests.exceptions.RequestException as e:
             log.info(f"Failed to download the image: {e}")
