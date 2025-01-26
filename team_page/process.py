@@ -15,6 +15,7 @@ from pytanis import GSheetsClient
 
 from team_page import CONFIG, TEAM_SHEET_ID, TEAM_WORKSHEET_NAME, WEBSITE_REPOSITORY_TOKEN, log
 from team_page.models import Committee, TeamDataBag, TeamMember
+from team_page.utils import obfuscate_name
 
 
 class UpdateTeamPage:
@@ -45,12 +46,16 @@ class UpdateTeamPage:
             shutil.rmtree(self.local_repo_path)
         log.info("Cloning repository...")
         self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path)
-
+        self.repo.git.fetch("--all")
         if CONFIG["branch_name"] in self.repo.heads:
             self.repo.git.checkout(CONFIG["branch_name"])
+            log.info(f"Checked out existing branch {CONFIG['branch_name']}")
+            log.info(f"Pulling latest changes from remote branch {CONFIG['branch_name']}...")
+            self.repo.git.pull("origin", CONFIG["branch_name"], "--rebase")
+            log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
-        log.info(f"Cloned repository and checked out {CONFIG['branch_name']})")
+            log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
 
     def sheet_to_json(self):
         log.info("Converting Google Sheet to JSON")
@@ -62,7 +67,7 @@ class UpdateTeamPage:
 
         log.info("Creating TeamMembers")
         for i, record in enumerate(records, 1):
-            log.info(f"Processing record {i}/{len(records)} {record['name']}")
+            log.info(f"Processing record {i}/{len(records)} {obfuscate_name(record['name'])}")
             if record["ignore"].casefold() != "yes":
                 continue
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
@@ -155,41 +160,34 @@ class UpdateTeamPage:
             f.write(data_bag.model_dump_json(indent=4))
         log.info("Created data_bag json")
 
-    def commit_changes(self):
-        self.repo.index.commit("Update team data")
+    def apply_changes(self):
+        """Compare the local branch and the remote branch if there is any difference to push, the remote branch is origin/main."""
         try:
-            origin = self.repo.remote(name="origin")
-            branch_name = self.repo.active_branch.name
-            # Pull the latest changes from the remote repository
-            log.info("Pulling latest changes from remote repository...")
-            # Check if the branch has an upstream set
-            tracking_branch = self.repo.active_branch.tracking_branch()
-            try:
-                self.repo.git.fetch("--all")
-                if self.repo.is_dirty(untracked_files=True):
-                    self.repo.git.stash('save')
-                    stash_applied = True
-                else:
-                    stash_applied = False
-                self.repo.git.pull("origin", branch_name, "--rebase")
-                if stash_applied:
-                    self.repo.git.stash('pop')
-            except GitCommandError as e:
-                log.error(f"Failed to pull changes: {e}")
-            if not tracking_branch:
-                # Set the upstream branch if it doesn't exist
-                log.info(f"Setting upstream branch for '{branch_name}'...")
-                self.repo.git.push("--set-upstream", "origin", branch_name)
+            # Check for changes
+            if self.repo.is_dirty(untracked_files=True):
+                log.info("Changes detected, committing changes...")
+                self.repo.git.add(A=True)
+                self.repo.index.commit("Update team page data")
+                self.changes_to_push = True
             else:
-                log.info(f"Upstream branch already set: {tracking_branch.name}")
+                log.info("No changes detected in the repository.")
 
-            self.check_for_changes()
-            if not self.changes_to_push:
-                log.info("No changes to push. Exiting...")
-                return
-            # Push changes
-            log.info("Pushing changes to remote repository...")
-            origin.push()
+            # Check if there are any differences between the local and remote branches
+            remote_branch = self.repo.remotes.origin.refs.main
+            local_branch = self.repo.heads[CONFIG["branch_name"]]
+
+            if local_branch.commit != remote_branch.commit:
+                log.info("Differences detected between local and remote branches.")
+                self.changes_to_push = True
+            else:
+                log.info("No differences detected between local and remote branches.")
+                self.changes_to_push = False
+
+            # Push changes to the remote repository if there are any changes to push
+            if self.changes_to_push:
+                log.info(f"Pushing changes to remote branch {CONFIG['branch_name']}...")
+                self.repo.git.push("origin", CONFIG["branch_name"], "--force-with-lease")
+                log.info("Changes pushed successfully.")
 
         except Exception as e:
             log.error(f"Failed to commit and push changes: {e}")
@@ -200,12 +198,29 @@ class UpdateTeamPage:
             log.info("No PR to make. Exiting...")
             return
         # Step 5: Create a pull request
-        log.info("Creating a pull request...")
-        api_url = f"https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls"
+        # Check if a pull request already exists for this branch
+        log.info("Checking if a pull request already exists for this branch...")
+        pr_url = f"https://api.github.com/repos/{CONFIG['repo_owner']}/{CONFIG['repo_name']}/pulls"
         headers = {
             "Authorization": f"Bearer {WEBSITE_REPOSITORY_TOKEN}",
             "Accept": "application/vnd.github+json",
         }
+        params = {
+            "head": f"{CONFIG['repo_owner']}:{CONFIG['branch_name']}",
+            "base": "main",
+        }
+        response = requests.get(pr_url, headers=headers, params=params)
+
+        if response.status_code == HTTPStatus.OK:
+            existing_prs = response.json()
+            if existing_prs:
+                log.info("A pull request already exists for this branch. Exiting...")
+            return
+        else:
+            log.error(f"Failed to check for existing pull requests: {response.status_code}")
+            log.error(response.json())
+        log.info("Creating a pull request...")
+        api_url = f'https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls'
         payload = {
             "title": "Team page auto-update",
             "head": CONFIG["branch_name"],
@@ -217,6 +232,19 @@ class UpdateTeamPage:
 
         if response.status_code == HTTPStatus.CREATED:
             log.info("Pull request created successfully!")
+            pr = response.json()
+            # Assign the pull request to people
+            assignees_url = pr["url"] + "/assignees"
+            assignees_payload = {
+            "assignees": CONFIG["pr_assignees"]
+            }
+            assignees_response = requests.post(assignees_url, headers=headers, json=assignees_payload)
+
+            if assignees_response.status_code == HTTPStatus.CREATED:
+                log.info("Pull request assigned successfully!")
+            else:
+                log.error(f"Failed to assign pull request: {assignees_response.status_code}")
+                log.error(assignees_response.json())
         else:
             log.info("Failed to create pull request:", response.status_code)
             log.info(response.json())
@@ -230,6 +258,8 @@ class UpdateTeamPage:
             # Get the current branch and its tracking branch
             local_branch = self.repo.active_branch
             tracking_branch = local_branch.tracking_branch()
+            log.info(f"Local branch: {local_branch.name}")
+            log.info(f"Tracking branch: {tracking_branch.name if tracking_branch else None}")
 
             if not tracking_branch:
                 raise ValueError(f"Local branch '{local_branch}' has no upstream branch.")
@@ -238,11 +268,11 @@ class UpdateTeamPage:
             local_commit = self.repo.commit(local_branch)
             remote_commit = self.repo.commit(tracking_branch)
 
-            if local_commit == remote_commit:
-                log.info("No changes detected: Local and remote branches are in sync.")
-            else:
+            if local_commit != remote_commit or not self.remote_exists:
                 log.info("Changes detected: Local and remote branches differ.")
                 self.changes_to_push = True
+            else:
+                log.info("No changes detected: Local and remote branches are in sync.")
 
         except GitCommandError as e:
             log.info(f"Git command failed: {e}")
@@ -253,6 +283,6 @@ class UpdateTeamPage:
         self.get_repo()
         new_data_bag = self.sheet_to_json()
         self.save_json(new_data_bag)
-        self.commit_changes()
-        self.check_for_changes()
+        self.apply_changes()
+        # self.check_for_changes()
         self.pull_request()
