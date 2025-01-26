@@ -57,7 +57,7 @@ class UpdateTeamPage:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
             log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
 
-    def sheet_to_json(self):
+    def create_databag(self):
         log.info("Converting Google Sheet to JSON")
         self.gsheet_df = self.read_gsheet()
         log.info("Read Google Sheet")
@@ -117,9 +117,9 @@ class UpdateTeamPage:
         url = member.image_file
         if url.host == "drive.google.com":
             url = str(url).replace("open", "uc")
-        self.download_url(url, member, normalized_name)
+        self.download(url, member, normalized_name)
 
-    def download_url(self, url: str, member: TeamMember, normalized_name: str):
+    def download(self, url: str, member: TeamMember, normalized_name: str):
         try:
             # Step 1: Fetch Content-Type from the URL
             try:
@@ -281,7 +281,7 @@ class UpdateTeamPage:
 
     def run_update(self):
         self.get_repo()
-        new_data_bag = self.sheet_to_json()
+        new_data_bag = self.create_databag()
         self.save_json(new_data_bag)
         self.apply_changes()
         # self.check_for_changes()

@@ -56,7 +56,7 @@ jobs:
           # unused but required in Pytanis
           echo "[HelpDesk]">>config.toml
           echo "[Pretalx]">>config.toml
-          
+
       - name: Create Google Client Secret
         working-directory: /home/runner/.pytanis
         run: |

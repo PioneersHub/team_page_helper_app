@@ -18,7 +18,7 @@ def main():
 
     if args.mode == "local":
         updater.get_repo()
-        updater.sheet_to_json()
+        updater.create_databag()
         log.info("Local update completed.")
     elif args.mode == "full":
         updater.run_update()
