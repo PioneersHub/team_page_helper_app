@@ -15,6 +15,7 @@ from pytanis import GSheetsClient
 
 from team_page import CONFIG, TEAM_SHEET_ID, TEAM_WORKSHEET_NAME, WEBSITE_REPOSITORY_TOKEN, log
 from team_page.models import Committee, TeamDataBag, TeamMember
+from team_page.utils import obfuscate_name
 
 
 class UpdateTeamPage:
@@ -45,11 +46,12 @@ class UpdateTeamPage:
             shutil.rmtree(self.local_repo_path)
         log.info("Cloning repository...")
         self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path)
-
+        self.repo.git.fetch("--all")
         if CONFIG["branch_name"] in self.repo.heads:
             self.repo.git.checkout(CONFIG["branch_name"])
             log.info(f"Checked out existing branch {CONFIG['branch_name']}")
-            self.repo.git.pull("origin", CONFIG["branch_name"])
+            log.info(f"Pulling latest changes from remote branch {CONFIG['branch_name']}...")
+            self.repo.git.pull("origin", CONFIG["branch_name"], "--rebase")
             log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
@@ -65,7 +67,7 @@ class UpdateTeamPage:
 
         log.info("Creating TeamMembers")
         for i, record in enumerate(records, 1):
-            log.info(f"Processing record {i}/{len(records)} {record['name']}")
+            log.info(f"Processing record {i}/{len(records)} {obfuscate_name(record['name'])}")
             if record["ignore"].casefold() != "yes":
                 continue
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
@@ -181,14 +183,14 @@ class UpdateTeamPage:
                 log.info("No differences detected between local and remote branches.")
                 self.changes_to_push = False
 
-                    # Push changes to the remote repository if there are any changes to push
+            # Push changes to the remote repository if there are any changes to push
             if self.changes_to_push:
                 log.info(f"Pushing changes to remote branch {CONFIG['branch_name']}...")
-                self.repo.git.push("origin", CONFIG["branch_name"])
+                self.repo.git.push("origin", CONFIG["branch_name"], "--force-with-lease")
                 log.info("Changes pushed successfully.")
 
         except Exception as e:
-            log.error(f"Failed to commit changes: {e}")
+            log.error(f"Failed to commit and push changes: {e}")
             raise
 
     def pull_request(self):
@@ -196,12 +198,29 @@ class UpdateTeamPage:
             log.info("No PR to make. Exiting...")
             return
         # Step 5: Create a pull request
-        log.info("Creating a pull request...")
-        api_url = f"https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls"
+        # Check if a pull request already exists for this branch
+        log.info("Checking if a pull request already exists for this branch...")
+        pr_url = f"https://api.github.com/repos/{CONFIG['repo_owner']}/{CONFIG['repo_name']}/pulls"
         headers = {
             "Authorization": f"Bearer {WEBSITE_REPOSITORY_TOKEN}",
             "Accept": "application/vnd.github+json",
         }
+        params = {
+            "head": f"{CONFIG['repo_owner']}:{CONFIG['branch_name']}",
+            "base": "main",
+        }
+        response = requests.get(pr_url, headers=headers, params=params)
+
+        if response.status_code == HTTPStatus.OK:
+            existing_prs = response.json()
+            if existing_prs:
+                log.info("A pull request already exists for this branch. Exiting...")
+            return
+        else:
+            log.error(f"Failed to check for existing pull requests: {response.status_code}")
+            log.error(response.json())
+        log.info("Creating a pull request...")
+        api_url = f'https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls'
         payload = {
             "title": "Team page auto-update",
             "head": CONFIG["branch_name"],
@@ -213,6 +232,19 @@ class UpdateTeamPage:
 
         if response.status_code == HTTPStatus.CREATED:
             log.info("Pull request created successfully!")
+            pr = response.json()
+            # Assign the pull request to people
+            assignees_url = pr["url"] + "/assignees"
+            assignees_payload = {
+            "assignees": CONFIG["pr_assignees"]
+            }
+            assignees_response = requests.post(assignees_url, headers=headers, json=assignees_payload)
+
+            if assignees_response.status_code == HTTPStatus.CREATED:
+                log.info("Pull request assigned successfully!")
+            else:
+                log.error(f"Failed to assign pull request: {assignees_response.status_code}")
+                log.error(assignees_response.json())
         else:
             log.info("Failed to create pull request:", response.status_code)
             log.info(response.json())
