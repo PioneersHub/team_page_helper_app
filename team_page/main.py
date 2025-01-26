@@ -1,5 +1,5 @@
-import argparse
-from logging import log
+import argparse  # noqa: I001
+from team_page import log
 
 from team_page.process import UpdateTeamPage
 
