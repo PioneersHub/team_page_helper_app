@@ -74,7 +74,7 @@ class UpdateTeamPage:
             try:
                 member = TeamMember(**record)
                 members[record.get("committee", "other")].append(member)
-            except ValidationError as e:
+            except (ValidationError, KeyError) as e:
                 log.error(f"Failed to create TeamMember: {e}")
                 continue
             self.download_member_image(member)
