@@ -73,11 +73,11 @@ class UpdateTeamPage:
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
             try:
                 member = TeamMember(**record)
+                members[record.get("committee", "other")].append(member)
             except ValidationError as e:
                 log.error(f"Failed to create TeamMember: {e}")
                 continue
             self.download_member_image(member)
-            members[record.get("committee", "other")].append(member)
 
         log.info("Created TeamMembers, creating Committees")
         committees = [Committee(name=k, members=v) for k, v in members.items()]
