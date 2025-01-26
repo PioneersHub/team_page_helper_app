@@ -111,7 +111,7 @@ class UpdateTeamPage:
                 return
         normalized_name = self.normalized_member_name(member.name)
         if normalized_name in {x.stem.casefold() for x in self.image_dir.rglob("*")}:
-            log.info(f"Image for {member.name} already exists, remove from website repo first to update.")
+            log.info(f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update.")
             return
 
         url = member.image_file
