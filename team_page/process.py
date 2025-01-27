@@ -231,7 +231,7 @@ class UpdateTeamPage:
             existing_prs = response.json()
             if existing_prs:
                 log.info("A pull request already exists for this branch. Exiting...")
-            return
+                return
         else:
             log.error(f"Failed to check for existing pull requests: {response.status_code}")
             log.error(response.json())
