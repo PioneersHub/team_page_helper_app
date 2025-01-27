@@ -14,7 +14,7 @@ member:
   "Committee": "committee"
   "Mastodon  (URL)": "mastodon"
   "Git": "github"
-  "Upload picture": "image_file"
+  "Upload picture": "image_url"
   "LinkedIn  (URL)": "linkedin"
   "Name": "name"
   "Homepage  (URL)": "website"

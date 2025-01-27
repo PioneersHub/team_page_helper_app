@@ -73,11 +73,14 @@ class UpdateTeamPage:
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
             try:
                 member = TeamMember(**record)
+                image_name = self.download_member_image(member)
+                # data bag should contain only the image file name
+                member.image_url = None
+                member.image_name = image_name
                 members[record.get("committee", "other")].append(member)
             except (ValidationError, KeyError) as e:
                 log.error(f"Failed to create TeamMember: {e}")
                 continue
-            self.download_member_image(member)
 
         log.info("Created TeamMembers, creating Committees")
         committees = [Committee(name=k, members=v) for k, v in members.items()]
@@ -103,21 +106,22 @@ class UpdateTeamPage:
         return committees
 
     def download_member_image(self, member: TeamMember):
-        if not member.image_file:
+        if not member.image_url:
             return
         with contextlib.suppress(Exception):
-            if (self.image_dir / member.image_file.path.split("/")[-1]).exists():
+            if (self.image_dir / member.image_url.path.split("/")[-1]).exists():
                 # avoid repeated image updates
                 return
         normalized_name = self.normalized_member_name(member.name)
-        if normalized_name in {x.stem.casefold() for x in self.image_dir.rglob("*")}:
+        image_in_place = [x for x in {x.name.casefold() for x in self.image_dir.rglob("*")} if normalized_name in x]
+        if image_in_place:
             log.info(
                 f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update."
             )
-            return
+            return image_in_place[0]
 
-        url = member.image_file
-        self.download(url, member, normalized_name)
+        url = member.image_url
+        return self.download(url, member, normalized_name)
 
     def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
@@ -129,7 +133,7 @@ class UpdateTeamPage:
                 response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
                 content_type = response.headers.get("Content-Type").strip()
             else:
-                url = str(member.image_file)
+                url = str(member.image_url)
                 # Step 1: Fetch Content-Type from the URL
                 try:
                     response = requests.head(url, allow_redirects=True)
@@ -154,8 +158,8 @@ class UpdateTeamPage:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
                 self.repo.git.add(str(member_image))
-
             log.info(f"Image {obfuscate_name(member.name)} downloaded successfully and saved")
+            return member_image.name
 
         except requests.exceptions.RequestException as e:
             log.info(f"Failed to download the image: {e}")
