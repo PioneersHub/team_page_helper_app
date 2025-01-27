@@ -123,6 +123,15 @@ class UpdateTeamPage:
         url = member.image_url
         return self.download(url, member, normalized_name)
 
+    @classmethod
+    def validate_content_type(cls, response) -> str:
+        content_type = response.headers.get("Content-Type").strip()
+        if not content_type or not content_type.startswith("image/"):
+            message = f"URL does not point to a valid image: {content_type}"
+            log.error(message)
+            raise ValueError(message)
+        return content_type.split("/")[-1]
+
     def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
             if url.host == "drive.google.com":
@@ -131,7 +140,7 @@ class UpdateTeamPage:
                 gid = parse_qs(parsed_url.query)["id"][0]
                 session = requests.Session()
                 response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
-                content_type = response.headers.get("Content-Type").strip()
+                ext = self.validate_content_type(response)
             else:
                 url = str(member.image_url)
                 # Step 1: Fetch Content-Type from the URL
@@ -143,16 +152,11 @@ class UpdateTeamPage:
                     log.error(message)
                     raise ValueError(message) from e
 
-                content_type = response.headers.get("Content-Type").strip()
-                if not content_type or not content_type.startswith("image/"):
-                    message = f"URL does not point to a valid image: {url}"
-                    log.error(message)
-                    raise ValueError(message)
-
+                ext = self.validate_content_type(response)
                 response = requests.get(url, stream=True)
                 response.raise_for_status()  # Raise an error for HTTP codes >= 400
 
-            member_image = self.image_dir / f"{normalized_name}.{content_type.split('/')[-1]}"
+            member_image = self.image_dir / f"{normalized_name}.{ext}"
             # Write the image content to a file
             with open(member_image, "wb") as file:
                 for chunk in response.iter_content(chunk_size=8192):
