@@ -240,7 +240,7 @@ class UpdateTeamPage:
         payload = {
             "title": "Team page auto-update",
             "head": CONFIG["branch_name"],
-            "base": "main",  # Replace with your default branch name if different
+            "base": "main",
             "body": "This pull request adds extra data to the repository.",
         }
 
@@ -249,16 +249,15 @@ class UpdateTeamPage:
         if response.status_code == HTTPStatus.CREATED:
             log.info("Pull request created successfully!")
             pr = response.json()
-            # Assign the pull request to people
-            assignees_url = pr["url"] + "/assignees"
-            assignees_payload = {"assignees": CONFIG["pr_assignees"]}
-            assignees_response = requests.post(assignees_url, headers=headers, json=assignees_payload)
+            reviewers_url = pr["url"] + "/requested_reviewers"
+            reviewers_payload = {"reviewers": CONFIG["pr_reviewers"]}
+            reviewers_response = requests.post(reviewers_url, headers=headers, json=reviewers_payload)
 
-            if assignees_response.status_code == HTTPStatus.CREATED:
+            if reviewers_response.status_code == HTTPStatus.CREATED:
                 log.info("Pull request assigned successfully!")
             else:
-                log.error(f"Failed to assign pull request: {assignees_response.status_code}")
-                log.error(assignees_response.json())
+                log.warn(f"Failed to assign pull request: {reviewers_response.status_code}")
+                log.warn(reviewers_response.json())
         else:
             log.info("Failed to create pull request:", response.status_code)
             log.info(response.json())
