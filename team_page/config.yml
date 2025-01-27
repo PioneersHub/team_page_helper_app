@@ -5,8 +5,6 @@ team_images: "assets/static/media/team/2025/"
 default_image: "gender_neutral_user.png"
 data_bag: "databags/team.json"
 # destination url
-team_asset_url: "https://2024.pycon.de/static/media/team/2025/"
-# #########################################
 # #########################################
 # MAP G-SHEET COLUMNS TO KEYS
 # #########################################
@@ -16,7 +14,7 @@ member:
   "Committee": "committee"
   "Mastodon  (URL)": "mastodon"
   "Git": "github"
-  "Upload picture": "image_file"
+  "Upload picture": "image_url"
   "LinkedIn  (URL)": "linkedin"
   "Name": "name"
   "Homepage  (URL)": "website"

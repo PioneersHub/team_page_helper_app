@@ -7,10 +7,11 @@ import contextlib
 import shutil
 from http import HTTPStatus
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from git import GitCommandError, Repo
-from pydantic import ValidationError
+from pydantic import AnyHttpUrl, ValidationError
 from pytanis import GSheetsClient
 
 from team_page import CONFIG, TEAM_SHEET_ID, TEAM_WORKSHEET_NAME, WEBSITE_REPOSITORY_TOKEN, log
@@ -19,9 +20,7 @@ from team_page.utils import obfuscate_name
 
 
 class UpdateTeamPage:
-
     def __init__(self):
-
         self.repo = None
         self.gsheets_client = GSheetsClient()
         self.gsheet_df = None
@@ -40,12 +39,13 @@ class UpdateTeamPage:
         log.info("Downloaded Google Sheet")
         return gsheet_df
 
-
     def get_repo(self):
         if self.local_repo_path.exists():
             shutil.rmtree(self.local_repo_path)
         log.info("Cloning repository...")
-        self.repo = Repo.clone_from(CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path)
+        self.repo = Repo.clone_from(
+            CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path
+        )
         self.repo.git.fetch("--all")
         if CONFIG["branch_name"] in self.repo.heads:
             self.repo.git.checkout(CONFIG["branch_name"])
@@ -73,11 +73,14 @@ class UpdateTeamPage:
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
             try:
                 member = TeamMember(**record)
+                image_name = self.download_member_image(member)
+                # data bag should contain only the image file name
+                member.image_url = None
+                member.image_name = image_name
                 members[record.get("committee", "other")].append(member)
             except (ValidationError, KeyError) as e:
                 log.error(f"Failed to create TeamMember: {e}")
                 continue
-            self.download_member_image(member)
 
         log.info("Created TeamMembers, creating Committees")
         committees = [Committee(name=k, members=v) for k, v in members.items()]
@@ -103,42 +106,51 @@ class UpdateTeamPage:
         return committees
 
     def download_member_image(self, member: TeamMember):
-        if not member.image_file:
+        if not member.image_url:
             return
         with contextlib.suppress(Exception):
-            if (self.image_dir / member.image_file.path.split("/")[-1]).exists():
+            if (self.image_dir / member.image_url.path.split("/")[-1]).exists():
                 # avoid repeated image updates
                 return
         normalized_name = self.normalized_member_name(member.name)
-        if normalized_name in {x.stem.casefold() for x in self.image_dir.rglob("*")}:
-            log.info(f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update.")
-            return
+        image_in_place = [x for x in {x.name.casefold() for x in self.image_dir.rglob("*")} if normalized_name in x]
+        if image_in_place:
+            log.info(
+                f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update."
+            )
+            return image_in_place[0]
 
-        url = member.image_file
-        if url.host == "drive.google.com":
-            url = str(url).replace("open", "uc")
-        self.download(url, member, normalized_name)
+        url = member.image_url
+        return self.download(url, member, normalized_name)
 
-    def download(self, url: str, member: TeamMember, normalized_name: str):
+    def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
-            # Step 1: Fetch Content-Type from the URL
-            try:
-                response = requests.head(url, allow_redirects=True)
-                response.raise_for_status()
-            except requests.RequestException as e:
-                message = f"Failed to fetch URL headers: {e}"
-                log.error(message)
-                raise ValueError(message) from e
+            if url.host == "drive.google.com":
+                # needs to be downloaded via session
+                parsed_url = urlparse(str(url))
+                gid = parse_qs(parsed_url.query)["id"][0]
+                session = requests.Session()
+                response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
+                content_type = response.headers.get("Content-Type").strip()
+            else:
+                url = str(member.image_url)
+                # Step 1: Fetch Content-Type from the URL
+                try:
+                    response = requests.head(url, allow_redirects=True)
+                    response.raise_for_status()
+                except requests.RequestException as e:
+                    message = f"Failed to fetch URL headers: {e}"
+                    log.error(message)
+                    raise ValueError(message) from e
 
-            content_type = response.headers.get("Content-Type").strip()
-            if not content_type or not content_type.startswith("image/"):
-                message = f"URL does not point to a valid image: {url}"
-                log.error(message)
-                raise ValueError(message)
+                content_type = response.headers.get("Content-Type").strip()
+                if not content_type or not content_type.startswith("image/"):
+                    message = f"URL does not point to a valid image: {url}"
+                    log.error(message)
+                    raise ValueError(message)
 
-            # Send a GET request to the URL
-            response = requests.get(member.image_file, stream=True)
-            response.raise_for_status()  # Raise an error for HTTP codes >= 400
+                response = requests.get(url, stream=True)
+                response.raise_for_status()  # Raise an error for HTTP codes >= 400
 
             member_image = self.image_dir / f"{normalized_name}.{content_type.split('/')[-1]}"
             # Write the image content to a file
@@ -146,8 +158,8 @@ class UpdateTeamPage:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
                 self.repo.git.add(str(member_image))
-
             log.info(f"Image {obfuscate_name(member.name)} downloaded successfully and saved")
+            return member_image.name
 
         except requests.exceptions.RequestException as e:
             log.info(f"Failed to download the image: {e}")
@@ -220,7 +232,7 @@ class UpdateTeamPage:
             log.error(f"Failed to check for existing pull requests: {response.status_code}")
             log.error(response.json())
         log.info("Creating a pull request...")
-        api_url = f'https://api.github.com/repos/{CONFIG["repo_owner"]}/{CONFIG["repo_name"]}/pulls'
+        api_url = f"https://api.github.com/repos/{CONFIG['repo_owner']}/{CONFIG['repo_name']}/pulls"
         payload = {
             "title": "Team page auto-update",
             "head": CONFIG["branch_name"],
@@ -235,9 +247,7 @@ class UpdateTeamPage:
             pr = response.json()
             # Assign the pull request to people
             assignees_url = pr["url"] + "/assignees"
-            assignees_payload = {
-            "assignees": CONFIG["pr_assignees"]
-            }
+            assignees_payload = {"assignees": CONFIG["pr_assignees"]}
             assignees_response = requests.post(assignees_url, headers=headers, json=assignees_payload)
 
             if assignees_response.status_code == HTTPStatus.CREATED:
