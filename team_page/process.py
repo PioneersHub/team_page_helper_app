@@ -91,7 +91,7 @@ class UpdateTeamPage:
         committees = self.sort_committees(committees)
         # noinspection PyTypeChecker
         data_bag = TeamDataBag(
-            team_images=CONFIG["team_images"],
+            team_images=CONFIG["team_images_url"],
             default_image=CONFIG["default_image"],
             types=committees,
         )
