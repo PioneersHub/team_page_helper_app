@@ -73,7 +73,10 @@ class UpdateTeamPage:
             record["role"] = "Chair" if record["chair"].casefold() == "yes" else ""
             try:
                 member = TeamMember(**record)
-                image_name = self.download_member_image(member)
+                try:
+                    image_name = self.download_member_image(member)
+                except Exception:
+                    image_name = None
                 # data bag should contain only the image file name
                 member.image_url = None
                 member.image_name = image_name
