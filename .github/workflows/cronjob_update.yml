@@ -43,9 +43,6 @@ jobs:
       - name: Create .pytanis directory
         run: |
           mkdir /home/runner/.pytanis
-      - name: Just to DEBUG
-        run: |
-          ls -lha */*
       - name: Create config.toml
         working-directory: /home/runner/.pytanis
         run: |
