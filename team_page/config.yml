@@ -32,6 +32,8 @@ sort_order:
   - 'Video'
   - 'Communication'
   - 'Code of Conduct'
+  - 'Community Reporter'
+  - 'other'
 # #########################################
 # destination github repo
 git_repo_url: "https://github.com/PioneersHub/pyconde-website"
@@ -42,5 +44,5 @@ branch_name: "auto-update-team-page"
 repo_owner: "PioneersHub"
 repo_name: "pyconde-website"
 pr_reviewers:
-  - "oem"
+  - "alanderex"
 # #########################################
