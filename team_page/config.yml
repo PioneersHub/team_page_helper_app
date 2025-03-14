@@ -30,9 +30,9 @@ sort_order:
   - 'Diversity'
   - 'On-Site'
   - 'Video'
-  - 'Communication'
   - 'Code of Conduct'
   - 'Community Reporter'
+  - 'Pioneers Hub Office'
   - 'other'
 # #########################################
 # destination github repo
