@@ -104,7 +104,7 @@ class UpdateTeamPage:
         committees = sorted(
             [c for c in committees if c.name in CONFIG["sort_order"]],
             key=lambda c: CONFIG["sort_order"].index(c.name),
-        ) + sorted([c for c in committees if c.name not in CONFIG["sort_order"]])
+        ) + sorted([c for c in committees if c.name not in CONFIG["sort_order"]], key=lambda c: c.name)
         log.info("Sorted committees")
         return committees
 
