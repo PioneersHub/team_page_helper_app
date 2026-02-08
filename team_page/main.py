@@ -18,11 +18,14 @@ def main():
 
     if args.mode == "local":
         updater.get_repo()
-        updater.create_databag()
+        data_bag = updater.create_databag()
+        updater.save_json(data_bag)
+        updater.save_yaml(data_bag)
         log.info("Local update completed.")
     elif args.mode == "full":
         updater.run_update()
         log.info("Full update completed.")
+
 
 if __name__ == "__main__":
     main()
