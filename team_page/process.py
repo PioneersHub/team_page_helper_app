@@ -116,12 +116,32 @@ class UpdateTeamPage:
         log.info("Sorted committees")
         return committees
 
+    @staticmethod
+    def _normalize_extension(filename: str) -> str:
+        """Normalize image file extensions for consistency. jpg → jpeg."""
+        if filename.casefold().endswith(".jpg"):
+            return filename[:-4] + ".jpeg"
+        return filename
+
     def _find_existing_image(self, normalized_name: str) -> str | None:
-        """Find an existing image file matching the normalized member name."""
-        image_in_place = [
-            x.name for x in self.image_dir.iterdir() if x.is_file() and normalized_name in x.name.casefold()
-        ]
-        return image_in_place[0] if image_in_place else None
+        """Find an existing image file matching the normalized member name.
+
+        If a .jpg file is found, it is renamed to .jpeg for consistency
+        and the normalized filename is returned.
+        """
+        for path in self.image_dir.iterdir():
+            if not path.is_file() or normalized_name not in path.name.casefold():
+                continue
+            normalized = self._normalize_extension(path.name)
+            if normalized != path.name:
+                new_path = path.with_name(normalized)
+                path.rename(new_path)
+                if self.repo:
+                    self.repo.git.add(str(new_path))
+                    self.repo.git.rm(str(path), cached=True, ignore_unmatch=True)
+                log.info(f"Renamed {path.name} → {normalized} for consistency")
+            return normalized
+        return None
 
     def download_member_image(self, member: TeamMember):
         """Resolve the image filename for a team member.
@@ -153,7 +173,11 @@ class UpdateTeamPage:
             message = f"URL does not point to a valid image: {response.url} (content-type: {content_type})"
             log.error(message)
             raise ValueError(message)
-        return content_type.split("/")[-1]
+        ext = content_type.split("/")[-1]
+        # Normalize: jpg → jpeg for consistency
+        if ext.casefold() == "jpg":
+            ext = "jpeg"
+        return ext
 
     @staticmethod
     def _is_google_hosted(host: str) -> bool:
