@@ -26,13 +26,15 @@ member:
 # sort order for list on website, unlisted keys will at the end
 sort_order:
   - 'Steering'
+  - 'Pioneers Hub Office'
   - 'Program'
   - 'Diversity'
   - 'On-Site'
+  - 'Expericence'
   - 'Video'
   - 'Code of Conduct'
-  - 'Community Reporter'
-  - 'Pioneers Hub Office'
+  - 'PyLadies'
+  - 'Sprints'
   - 'other'
 # #########################################
 # destination github repo
