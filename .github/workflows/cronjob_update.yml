@@ -63,6 +63,5 @@ jobs:
         run: |
           echo ${{ secrets.GOOGLGE_TOKEN_JSON }} | base64 -d > token.json
 
-      - name: Run team_page/mainy.py
-        working-directory: team_page
-        run: uv run python main.py
+      - name: Run team page update
+        run: uv run python -m team_page

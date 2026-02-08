@@ -128,12 +128,17 @@ class UpdateTeamPage:
 
     @classmethod
     def validate_content_type(cls, response) -> str:
-        content_type = response.headers.get("Content-Type").strip()
+        content_type = response.headers.get("Content-Type", "").strip()
         if not content_type or not content_type.startswith("image/"):
-            message = f"URL does not point to a valid image: {content_type}"
+            message = f"URL does not point to a valid image: {response.url} (content-type: {content_type})"
             log.error(message)
             raise ValueError(message)
         return content_type.split("/")[-1]
+
+    @staticmethod
+    def _is_google_hosted(host: str) -> bool:
+        """Check if the URL is hosted on a Google domain."""
+        return host and (host.endswith(".google.com") or host.endswith(".googleapis.com"))
 
     def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
@@ -145,19 +150,25 @@ class UpdateTeamPage:
                 response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
                 ext = self.validate_content_type(response)
             else:
-                url = str(member.image_url)
-                # Step 1: Fetch Content-Type from the URL
-                try:
-                    response = requests.head(url, allow_redirects=True)
+                url_str = str(member.image_url)
+                if self._is_google_hosted(url.host):
+                    # Google-hosted URLs often return text/html for HEAD requests,
+                    # so skip HEAD and go straight to GET
+                    response = requests.get(url_str, stream=True, allow_redirects=True)
                     response.raise_for_status()
-                except requests.RequestException as e:
-                    message = f"Failed to fetch URL headers: {e}"
-                    log.error(message)
-                    raise ValueError(message) from e
-
+                else:
+                    # For non-Google URLs, use HEAD to check content type first
+                    try:
+                        head_response = requests.head(url_str, allow_redirects=True)
+                        head_response.raise_for_status()
+                    except requests.RequestException as e:
+                        message = f"Failed to fetch URL headers: {e}"
+                        log.error(message)
+                        raise ValueError(message) from e
+                    self.validate_content_type(head_response)
+                    response = requests.get(url_str, stream=True)
+                    response.raise_for_status()
                 ext = self.validate_content_type(response)
-                response = requests.get(url, stream=True)
-                response.raise_for_status()  # Raise an error for HTTP codes >= 400
 
             member_image = self.image_dir / f"{normalized_name}.{ext}"
             # Write the image content to a file
@@ -252,15 +263,20 @@ class UpdateTeamPage:
         if response.status_code == HTTPStatus.CREATED:
             log.info("Pull request created successfully!")
             pr = response.json()
+            pr_author = pr["user"]["login"]
+            reviewers = [r for r in CONFIG["pr_reviewers"] if r != pr_author]
+            if not reviewers:
+                log.info("No reviewers to assign (PR author is the only configured reviewer).")
+                return
             reviewers_url = pr["url"] + "/requested_reviewers"
-            reviewers_payload = {"reviewers": CONFIG["pr_reviewers"]}
+            reviewers_payload = {"reviewers": reviewers}
             reviewers_response = requests.post(reviewers_url, headers=headers, json=reviewers_payload)
 
             if reviewers_response.status_code == HTTPStatus.CREATED:
-                log.info("Pull request assigned successfully!")
+                log.info("Pull request reviewers assigned successfully!")
             else:
-                log.warn(f"Failed to assign pull request: {reviewers_response.status_code}")
-                log.warn(reviewers_response.json())
+                log.warning(f"Failed to assign pull request reviewers: {reviewers_response.status_code}")
+                log.warning(reviewers_response.json())
         else:
             log.info("Failed to create pull request:", response.status_code)
             log.info(response.json())
