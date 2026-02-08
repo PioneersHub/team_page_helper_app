@@ -48,10 +48,18 @@ class UpdateTeamPage:
             CONFIG["git_repo_url"].replace("https://", f"https://{WEBSITE_REPOSITORY_TOKEN}@"), self.local_repo_path
         )
         self.repo.git.fetch("--all")
-        if CONFIG["branch_name"] in self.repo.heads:
+        base_branch = CONFIG["pr_base_branch"]
+        # Checkout the base branch
+        if base_branch in self.repo.heads:
+            self.repo.git.checkout(base_branch)
+        else:
+            self.repo.git.checkout(f"origin/{base_branch}", b=base_branch)
+        log.info(f"Checked out base branch {base_branch}")
+        # Create or checkout the working branch from the base
+        remote_refs = [ref.name.split("/")[-1] for ref in self.repo.remotes.origin.refs]
+        if CONFIG["branch_name"] in remote_refs:
             self.repo.git.checkout(CONFIG["branch_name"])
             log.info(f"Checked out existing branch {CONFIG['branch_name']}")
-            log.info(f"Pulling latest changes from remote branch {CONFIG['branch_name']}...")
             self.repo.git.pull("origin", CONFIG["branch_name"], "--rebase")
             log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
         else:
@@ -117,7 +125,9 @@ class UpdateTeamPage:
                 # avoid repeated image updates
                 return
         normalized_name = self.normalized_member_name(member.name)
-        image_in_place = [x for x in {x.name.casefold() for x in self.image_dir.rglob("*")} if normalized_name in x]
+        image_in_place = [
+            x for x in {x.name.casefold() for x in self.image_dir.iterdir() if x.is_file()} if normalized_name in x
+        ]
         if image_in_place:
             log.info(
                 f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update."
@@ -206,7 +216,7 @@ class UpdateTeamPage:
                 log.info("No changes detected in the repository.")
 
             # Check if there are any differences between the local and remote branches
-            remote_branch = self.repo.remotes.origin.refs.main
+            remote_branch = self.repo.remotes.origin.refs[CONFIG["pr_base_branch"]]
             local_branch = self.repo.heads[CONFIG["branch_name"]]
 
             if local_branch.commit != remote_branch.commit:
@@ -240,7 +250,7 @@ class UpdateTeamPage:
         }
         params = {
             "head": f"{CONFIG['repo_owner']}:{CONFIG['branch_name']}",
-            "base": "main",
+            "base": CONFIG["pr_base_branch"],
         }
         response = requests.get(pr_url, headers=headers, params=params)
 
@@ -257,7 +267,7 @@ class UpdateTeamPage:
         payload = {
             "title": "Team page auto-update",
             "head": CONFIG["branch_name"],
-            "base": "main",
+            "base": CONFIG["pr_base_branch"],
             "body": "This pull request adds extra data to the repository.",
         }
 
