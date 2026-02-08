@@ -19,7 +19,6 @@ def main():
     if args.mode == "local":
         updater.get_repo()
         data_bag = updater.create_databag()
-        updater.save_json(data_bag)
         updater.save_yaml(data_bag)
         log.info("Local update completed.")
     elif args.mode == "full":

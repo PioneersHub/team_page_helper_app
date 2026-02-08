@@ -4,7 +4,7 @@
 team_images: "assets/static/media/team/"
 team_images_url: "/static/media/team/"
 default_image: "/static/media/team/gender_neutral_user.png"
-data_bag: "databags/team.json"
+data_bag: "databags/team.yaml"
 # destination url
 # #########################################
 # MAP G-SHEET COLUMNS TO KEYS
@@ -43,6 +43,7 @@ git_repo_url: "https://github.com/PioneersHub/pyconde-website"
 local_repo_path: "repo"
 # branch to make changes in
 branch_name: "auto-update-team-page"
+pr_base_branch: "update_teampage"
 repo_owner: "PioneersHub"
 repo_name: "pyconde-website"
 pr_reviewers:
