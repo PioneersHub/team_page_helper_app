@@ -324,8 +324,8 @@ class UpdateTeamPage:
                 log.warning(f"Failed to assign pull request reviewers: {reviewers_response.status_code}")
                 log.warning(reviewers_response.json())
         else:
-            log.info("Failed to create pull request:", response.status_code)
-            log.info(response.json())
+            log.error(f"Failed to create pull request: {response.status_code}")
+            log.error(response.json())
 
     def check_for_changes(self):
         try:
