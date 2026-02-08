@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import requests
+import yaml
 from git import GitCommandError, Repo
 from pydantic import AnyHttpUrl, ValidationError
 from pytanis import GSheetsClient
@@ -190,6 +191,14 @@ class UpdateTeamPage:
             f.write(data_bag.model_dump_json(indent=4))
         log.info("Created data_bag json")
 
+    def save_yaml(self, data_bag: TeamDataBag):
+        databag_yaml = self.databag_dir / "team.yml"
+        with databag_yaml.open("w") as f:
+            yaml.dump(
+                data_bag.model_dump(mode="json"), f, default_flow_style=False, allow_unicode=True, sort_keys=False
+            )
+        log.info("Created data_bag yaml")
+
     def apply_changes(self):
         """Compare the local branch and the remote branch if there is any difference to push, the remote branch is origin/main."""
         try:
@@ -315,6 +324,7 @@ class UpdateTeamPage:
         self.get_repo()
         new_data_bag = self.create_databag()
         self.save_json(new_data_bag)
+        self.save_yaml(new_data_bag)
         self.apply_changes()
         # self.check_for_changes()
         self.pull_request()
