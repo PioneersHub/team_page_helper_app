@@ -1,8 +1,8 @@
 ---
 # #########################################
 # repo locations from repo root
-team_images: "assets/static/media/team/2025/"
-team_images_url: "/static/media/team/2025/"
+team_images: "assets/static/media/team/"
+team_images_url: "/static/media/team/"
 default_image: "/static/media/team/gender_neutral_user.png"
 data_bag: "databags/team.json"
 # destination url
