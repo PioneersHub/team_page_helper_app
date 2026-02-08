@@ -43,7 +43,7 @@ git_repo_url: "https://github.com/PioneersHub/pyconde-website"
 local_repo_path: "repo"
 # branch to make changes in
 branch_name: "auto-update-team-page"
-pr_base_branch: "update_teampage"
+pr_base_branch: "main"
 repo_owner: "PioneersHub"
 repo_name: "pyconde-website"
 pr_reviewers:
