@@ -117,22 +117,32 @@ class UpdateTeamPage:
         log.info("Sorted committees")
         return committees
 
-    def download_member_image(self, member: TeamMember):
-        if not member.image_url:
-            return
-        with contextlib.suppress(Exception):
-            if (self.image_dir / member.image_url.path.split("/")[-1]).exists():
-                # avoid repeated image updates
-                return
-        normalized_name = self.normalized_member_name(member.name)
+    def _find_existing_image(self, normalized_name: str) -> str | None:
+        """Find an existing image file matching the normalized member name."""
         image_in_place = [
-            x for x in {x.name.casefold() for x in self.image_dir.iterdir() if x.is_file()} if normalized_name in x
+            x.name for x in self.image_dir.iterdir() if x.is_file() and normalized_name in x.name.casefold()
         ]
-        if image_in_place:
+        return image_in_place[0] if image_in_place else None
+
+    def download_member_image(self, member: TeamMember):
+        normalized_name = self.normalized_member_name(member.name)
+        if not member.image_url:
+            # No URL provided, but an image may already exist on disk
+            existing = self._find_existing_image(normalized_name)
+            if existing:
+                log.info(f"No image URL for {obfuscate_name(member.name)}, using existing image {existing}.")
+            return existing
+        with contextlib.suppress(Exception):
+            image_from_url = member.image_url.path.split("/")[-1]
+            if (self.image_dir / image_from_url).exists():
+                # avoid repeated image updates
+                return image_from_url
+        existing = self._find_existing_image(normalized_name)
+        if existing:
             log.info(
                 f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update."
             )
-            return image_in_place[0]
+            return existing
 
         url = member.image_url
         return self.download(url, member, normalized_name)
