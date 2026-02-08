@@ -1,5 +1,5 @@
 """
-Create the data for the team page into a JSON located in './databags/team.json'
+Create the data for the team page into a YAML located in './databags/team.yml'
 The info is collected via a Google Form and read from a Google Sheet.
 """
 
@@ -30,7 +30,7 @@ class UpdateTeamPage:
         self.local_repo_path = Path(__file__).parents[1] / CONFIG["local_repo_path"]
         self.image_dir = self.local_repo_path / CONFIG["team_images"]
         self.databag_dir = self.local_repo_path / "databags"
-        self.databag = self.databag_dir / "team.json"
+        self.databag = self.databag_dir / "team.yaml"
         # set up
         self.image_dir.mkdir(parents=True, exist_ok=True)
         self.databag_dir.mkdir(parents=True, exist_ok=True)
@@ -59,7 +59,7 @@ class UpdateTeamPage:
             log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
 
     def create_databag(self):
-        log.info("Converting Google Sheet to JSON")
+        log.info("Converting Google Sheet to YAML")
         self.gsheet_df = self.read_gsheet()
         log.info("Read Google Sheet")
         records = self.gsheet_df.rename(columns=CONFIG["member"]).fillna("").to_dict(orient="records")
@@ -186,14 +186,8 @@ class UpdateTeamPage:
     def normalized_member_name(self, name: str) -> str:
         return name.replace(" ", "_").casefold()
 
-    def save_json(self, data_bag: TeamDataBag):
-        with self.databag.open("w") as f:
-            f.write(data_bag.model_dump_json(indent=4))
-        log.info("Created data_bag json")
-
     def save_yaml(self, data_bag: TeamDataBag):
-        databag_yaml = self.databag_dir / "team.yml"
-        with databag_yaml.open("w") as f:
+        with self.databag.open("w") as f:
             yaml.dump(
                 data_bag.model_dump(mode="json"), f, default_flow_style=False, allow_unicode=True, sort_keys=False
             )
@@ -323,7 +317,6 @@ class UpdateTeamPage:
     def run_update(self):
         self.get_repo()
         new_data_bag = self.create_databag()
-        self.save_json(new_data_bag)
         self.save_yaml(new_data_bag)
         self.apply_changes()
         # self.check_for_changes()
