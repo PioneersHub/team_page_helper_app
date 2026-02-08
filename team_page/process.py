@@ -3,7 +3,6 @@ Create the data for the team page into a YAML located in './databags/team.yml'
 The info is collected via a Google Form and read from a Google Sheet.
 """
 
-import contextlib
 import shutil
 from http import HTTPStatus
 from pathlib import Path
@@ -125,27 +124,27 @@ class UpdateTeamPage:
         return image_in_place[0] if image_in_place else None
 
     def download_member_image(self, member: TeamMember):
+        """Resolve the image filename for a team member.
+
+        Strategy: always prefer existing images on disk over downloading.
+        An image is only downloaded when no matching file exists at all.
+        To update a member's image, remove it from the website repo first.
+
+        Returns the image filename (e.g. 'jane_doe.jpeg') or None.
+        """
         normalized_name = self.normalized_member_name(member.name)
-        if not member.image_url:
-            # No URL provided, but an image may already exist on disk
-            existing = self._find_existing_image(normalized_name)
-            if existing:
-                log.info(f"No image URL for {obfuscate_name(member.name)}, using existing image {existing}.")
-            return existing
-        with contextlib.suppress(Exception):
-            image_from_url = member.image_url.path.split("/")[-1]
-            if (self.image_dir / image_from_url).exists():
-                # avoid repeated image updates
-                return image_from_url
+
+        # 1. Always check disk first — existing images are never replaced
         existing = self._find_existing_image(normalized_name)
         if existing:
-            log.info(
-                f"Image for {obfuscate_name(member.name)} already exists, remove from website repo first to update."
-            )
+            log.info(f"Image for {obfuscate_name(member.name)} already on disk: {existing}")
             return existing
 
-        url = member.image_url
-        return self.download(url, member, normalized_name)
+        # 2. No image on disk — download only if a valid URL is provided
+        if not member.image_url:
+            return None
+
+        return self.download(member.image_url, member, normalized_name)
 
     @classmethod
     def validate_content_type(cls, response) -> str:
