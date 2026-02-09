@@ -61,6 +61,15 @@ class UpdateTeamPage:
             log.info(f"Checked out existing branch {CONFIG['branch_name']}")
             self.repo.git.pull("origin", CONFIG["branch_name"], "--rebase")
             log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
+            # Merge base branch to ensure all images and content from main are available
+            try:
+                self.repo.git.merge(f"origin/{base_branch}", "--no-edit")
+                log.info(f"Merged {base_branch} into {CONFIG['branch_name']}")
+            except GitCommandError as e:
+                log.warning(f"Merge conflict with {base_branch}, rebasing instead: {e}")
+                self.repo.git.merge("--abort")
+                self.repo.git.rebase(f"origin/{base_branch}")
+                log.info(f"Rebased {CONFIG['branch_name']} onto {base_branch}")
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
             log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
@@ -83,7 +92,8 @@ class UpdateTeamPage:
                 member = TeamMember(**record)
                 try:
                     image_name = self.download_member_image(member)
-                except Exception:
+                except Exception as e:
+                    log.error(f"Failed to resolve image for {obfuscate_name(member.name)}: {e}")
                     image_name = None
                 # data bag should contain only the image file name
                 member.image_url = None
@@ -182,14 +192,43 @@ class UpdateTeamPage:
     @staticmethod
     def _is_google_hosted(host: str) -> bool:
         """Check if the URL is hosted on a Google domain."""
-        return host and (host.endswith(".google.com") or host.endswith(".googleapis.com"))
+        return host and (
+            host.endswith(".google.com")
+            or host.endswith(".googleapis.com")
+            or host.endswith(".googleusercontent.com")
+        )
+
+    @staticmethod
+    def _extract_google_drive_id(url: AnyHttpUrl) -> str:
+        """Extract the file ID from various Google Drive URL formats.
+
+        Supported formats:
+          - https://drive.google.com/open?id=FILE_ID
+          - https://drive.google.com/file/d/FILE_ID/view
+          - https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+          - https://drive.google.com/uc?id=FILE_ID&export=download
+        """
+        parsed_url = urlparse(str(url))
+
+        # Try query parameter first (?id=FILE_ID)
+        query_params = parse_qs(parsed_url.query)
+        if "id" in query_params:
+            return query_params["id"][0]
+
+        # Try path extraction (/file/d/FILE_ID/...)
+        parts = parsed_url.path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "file" and parts[1] == "d":
+            return parts[2]
+
+        msg = f"Could not extract file ID from Google Drive URL: {url}"
+        log.error(msg)
+        raise ValueError(msg)
 
     def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
             if url.host == "drive.google.com":
                 # needs to be downloaded via session
-                parsed_url = urlparse(str(url))
-                gid = parse_qs(parsed_url.query)["id"][0]
+                gid = self._extract_google_drive_id(url)
                 session = requests.Session()
                 response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
                 ext = self.validate_content_type(response)
@@ -223,8 +262,8 @@ class UpdateTeamPage:
             log.info(f"Image {obfuscate_name(member.name)} downloaded successfully and saved")
             return member_image.name
 
-        except requests.exceptions.RequestException as e:
-            log.info(f"Failed to download the image: {e}")
+        except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+            log.error(f"Failed to download the image for {obfuscate_name(member.name)}: {type(e).__name__}: {e}")
 
     def normalized_member_name(self, name: str) -> str:
         return name.replace(" ", "_").casefold()
