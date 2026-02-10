@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 import yaml
 from git import GitCommandError, Repo
+from google.auth.transport.requests import AuthorizedSession
 from pydantic import AnyHttpUrl, ValidationError
 from pytanis import GSheetsClient
 
@@ -223,9 +224,8 @@ class UpdateTeamPage:
         try:
             if url.host == "drive.google.com":
                 gid = self._extract_google_drive_id(url)
-                session = requests.Session()
-                # Google deprecated drive.google.com/uc endpoint (May 2024).
-                # Use the current endpoint with confirm=t to bypass virus-scan interstitial.
+                creds = self.gsheets_client.gc.auth
+                session = AuthorizedSession(creds)
                 response = session.get(
                     "https://drive.usercontent.google.com/download",
                     params={"id": gid, "export": "download", "confirm": "t"},
