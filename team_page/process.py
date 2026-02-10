@@ -61,6 +61,15 @@ class UpdateTeamPage:
             log.info(f"Checked out existing branch {CONFIG['branch_name']}")
             self.repo.git.pull("origin", CONFIG["branch_name"], "--rebase")
             log.info(f"Pulled latest changes for branch {CONFIG['branch_name']}")
+            # Merge base branch to ensure all images and content from main are available
+            try:
+                self.repo.git.merge(f"origin/{base_branch}", "--no-edit")
+                log.info(f"Merged {base_branch} into {CONFIG['branch_name']}")
+            except GitCommandError as e:
+                log.warning(f"Merge conflict with {base_branch}, rebasing instead: {e}")
+                self.repo.git.merge("--abort")
+                self.repo.git.rebase(f"origin/{base_branch}")
+                log.info(f"Rebased {CONFIG['branch_name']} onto {base_branch}")
         else:
             self.repo.git.checkout("-b", CONFIG["branch_name"])
             log.info(f"Created and checked out new branch {CONFIG['branch_name']}")
