@@ -209,17 +209,12 @@ class UpdateTeamPage:
           - https://drive.google.com/uc?id=FILE_ID&export=download
         """
         parsed_url = urlparse(str(url))
-
-        # Try query parameter first (?id=FILE_ID)
         query_params = parse_qs(parsed_url.query)
         if "id" in query_params:
             return query_params["id"][0]
-
-        # Try path extraction (/file/d/FILE_ID/...)
         parts = parsed_url.path.strip("/").split("/")
         if len(parts) >= 3 and parts[0] == "file" and parts[1] == "d":
             return parts[2]
-
         msg = f"Could not extract file ID from Google Drive URL: {url}"
         log.error(msg)
         raise ValueError(msg)
@@ -227,10 +222,16 @@ class UpdateTeamPage:
     def download(self, url: AnyHttpUrl, member: TeamMember, normalized_name: str):
         try:
             if url.host == "drive.google.com":
-                # needs to be downloaded via session
                 gid = self._extract_google_drive_id(url)
                 session = requests.Session()
-                response = session.get("https://docs.google.com/uc?export=download", params={"id": gid}, stream=True)
+                # Google deprecated drive.google.com/uc endpoint (May 2024).
+                # Use the current endpoint with confirm=t to bypass virus-scan interstitial.
+                response = session.get(
+                    "https://drive.usercontent.google.com/download",
+                    params={"id": gid, "export": "download", "confirm": "t"},
+                    stream=True,
+                )
+                response.raise_for_status()
                 ext = self.validate_content_type(response)
             else:
                 url_str = str(member.image_url)
